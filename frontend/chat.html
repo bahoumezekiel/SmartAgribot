@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - SmartAgriBot</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="chat-page">
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <img src="images/logo.png" alt="SmartAgriBot Logo">
+                <span>SmartAgriBot</span>
+            </div>
+            <button class="mobile-menu-toggle" id="menu-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <nav class="nav">
+                <a href="index.html">Accueil</a>
+                <a href="index.html#fonctionnalites">Fonctionnalités</a>
+                <a href="chat.html" class="active">Discuter</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Chat Container -->
+    <main class="chat-container">
+        <!-- Sidebar avec historique - Style DeepSeek -->
+        <aside class="chat-sidebar" id="chat-sidebar">
+            <!-- Bouton toggle sidebar -->
+            <button class="sidebar-toggle" id="sidebar-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="sidebar-header">
+                <h3>SmartAgriBot</h3>
+            </div>
+            
+            <div class="history-section">
+                <h4><i class="fas fa-history"></i> Historique des Questions</h4>
+                <div class="history-list" id="history-list">
+                    <!-- Les questions précédentes seront ajoutées ici dynamiquement -->
+                </div>
+
+                <div class="quick-actions">
+                    <h4><i class="fas fa-bolt"></i> Questions Rapides</h4>
+                    <button class="quick-question" data-question="Quelle est la météo au Nord ?">
+                        <i class="fas fa-cloud-sun"></i> Météo Nord
+                    </button>
+                    <button class="quick-question" data-question="Quand planter le maïs ?">
+                        <i class="fas fa-seedling"></i> Planter maïs
+                    </button>
+                    <button class="quick-question" data-question="Maladies du coton">
+                        <i class="fas fa-bug"></i> Maladies coton
+                    </button>
+                    <button class="quick-question" data-question="Conseils pour le mil">
+                        <i class="fas fa-lightbulb"></i> Conseils mil
+                    </button>
+                </div>
+
+                <button id="clear-history" class="btn btn-secondary" style="margin-top: 20px; width: 100%;">
+                    <i class="fas fa-trash"></i> Effacer l'historique
+                </button>
+            </div>
+        </aside>
+
+        <!-- Zone de chat principale - Pleine largeur -->
+        <section class="chat-main">
+            <div class="chat-header">
+                <h2>Discutez avec SmartAgriBot</h2>
+                <p>Posez vos questions sur l'agriculture, la météo, les cultures et plus encore</p>
+            </div>
+
+            <div class="chat-messages" id="chat-messages">
+                <!-- Message de bienvenue simple -->
+                <div class="message bot-message">
+                    <div class="message-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <p>👋 Bonjour, ravi de vous retrouver ! Que puis-je faire pour vous ?</p>
+                        <div class="message-time">Maintenant</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Suggestions -->
+            <div class="suggestions" id="suggestions">
+                <button class="suggestion-btn" data-question="Quelle est la météo aujourd'hui ?">
+                    <i class="fas fa-cloud-sun"></i> Météo aujourd'hui
+                </button>
+                <button class="suggestion-btn" data-question="Calendrier de plantation">
+                    <i class="fas fa-seedling"></i> Calendrier de plantation
+                </button>
+                <button class="suggestion-btn" data-question="Conseils de culture">
+                    <i class="fas fa-lightbulb"></i> Conseils de culture
+                </button>
+            </div>
+
+            <!-- Input zone -->
+            <div class="chat-input-container">
+                <div class="chat-input">
+                    <input type="text" id="message-input" placeholder="Tapez votre question ici..." autocomplete="off">
+                    <button id="send-button">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="input-hints">
+                    <span>Appuyez sur Entrée pour envoyer</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="chat.js"></script>
+</body>
+</html>
