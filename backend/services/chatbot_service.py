@@ -1,17 +1,18 @@
 from services.nlp_service import NLPService
 from services.db_service import DatabaseService
 from services.weather_service import WeatherService
+from services.alert_service import AlertService
 import re
 
 class ChatbotService:
     """
     Service principal du chatbot avec NLP SpaCy
     But : recevoir une phrase de l'utilisateur, l'analyser (intention, entités, sentiment), 
-    et renvoyer une réponse métier adaptée (météo, calendrier de plantation/récolte, maladies, conseils).
+    et renvoyer une réponse métier adaptée (météo, calendrier de plantation/récolte, maladies, conseils, alertes).
 
     Flux : process_message → NLP → fallback contexte → dispatch → handler → préparation de la réponse → retour d'un dict structuré.
 
-    Intégration : dépend fortement de NLPService, DatabaseService et WeatherService. 
+    Intégration : dépend fortement de NLPService, DatabaseService, WeatherService et AlertService. 
     Le code assemble ces services et applique la logique métier.
 
     Personnalisation : utilise le sentiment pour ajuster le ton (empathie) et le user_context pour la région par défaut.
@@ -54,6 +55,7 @@ class ChatbotService:
         maladie_keywords = ['maladie', 'parasite', 'traiter', 'traitement', 'insecte', 'pest', 'infection', 'attaque']
         conseil_keywords = ['conseil', 'recommandation', 'technique', 'méthode', 'astuce', 'comment']
         meteo_keywords = ['météo', 'temps', 'climat', 'température', 'pluie', 'chaleur']
+        alerte_keywords = ['alerte', 'danger', 'risque', 'urgence', 'problème', 'sécheresse', 'inondation', 'vent', 'orage']
         
         # Si l'intention est 'general' mais qu'on détecte des mots-clés spécifiques
         if intention == 'general':
@@ -72,6 +74,9 @@ class ChatbotService:
                 print(f"[DEBUG] Intention affinée par fallback : {intention}")
             elif any(keyword in message_lower for keyword in meteo_keywords):
                 intention = 'meteo'
+                print(f"[DEBUG] Intention affinée par fallback : {intention}")
+            elif any(keyword in message_lower for keyword in alerte_keywords):
+                intention = 'alerte'
                 print(f"[DEBUG] Intention affinée par fallback : {intention}")
 
         # 5. Log de l'analyse (pour debug)
@@ -95,6 +100,8 @@ class ChatbotService:
                 return self.handle_maladie(culture_nom, sentiment)
             elif intention == 'conseil':
                 return self.handle_conseil(culture_nom, sentiment)
+            elif intention == 'alerte':
+                return self.handle_alerte(region, sentiment)
             else:
                 return self.handle_general(message, sentiment)
         except Exception as e:
@@ -104,6 +111,7 @@ class ChatbotService:
             return self.handle_error(str(e))
 
     # ================== HANDLERS ==================
+    
     def handle_meteo(self, region, sentiment):
         """Gère les questions sur la météo"""
         if not region:
@@ -129,12 +137,24 @@ class ChatbotService:
         response += f"💨 Vent : {weather['vent']} m/s\n"
         response += f"Pression : {weather['pression']} hPa"
 
-        if weather['temperature'] > 35:
+        # Vérifier si des alertes sont actives pour cette région
+        alertes = AlertService.detecter_alertes_meteo(region['id_reg'])
+        if alertes:
+            response += f"\n\n🚨 **{len(alertes)} ALERTE(S) ACTIVE(S) POUR CETTE RÉGION**\n"
+            for alerte in alertes[:2]:  # Afficher max 2 alertes
+                response += f"• {alerte['titre']}\n"
+            response += "\nTapez 'alertes' pour plus de détails."
+
+        elif weather['temperature'] > 35:
             response += "\n\n⚠️ Attention : Forte chaleur. Arrosez vos cultures en fin de journée."
         elif weather['humidite'] > 80:
             response += "\n\n💡 Conseil : Humidité élevée. Surveillez les maladies fongiques."
 
-        return {'response': response, 'data': weather, 'suggestions': ['Calendrier de plantation', 'Conseils culture']}
+        return {
+            'response': response, 
+            'data': weather, 
+            'suggestions': ['Calendrier de plantation', 'Conseils culture', 'Voir les alertes']
+        }
 
     def handle_plantation(self, culture_nom, region, sentiment):
         """Gère les questions sur la plantation"""
@@ -171,7 +191,12 @@ class ChatbotService:
         try:
             weather = WeatherService.get_weather(region['id_reg'])
             if 'temperature' in weather:
-                response += f"Conditions actuelles :** {weather['temperature']}°C, {self.clean_text(weather['description'])}\n\n"
+                response += f"Conditions actuelles : {weather['temperature']}°C, {self.clean_text(weather['description'])}\n\n"
+                
+                # Vérifier les alertes pour conseils de plantation
+                alertes = AlertService.detecter_alertes_meteo(region['id_reg'])
+                if alertes:
+                    response += "🚨 **CONSEIL SPÉCIAL** : Consultez les alertes météo actuelles avant de planter.\n\n"
         except:
             pass
 
@@ -191,7 +216,8 @@ class ChatbotService:
             'suggestions': [
                 f'Récolte {culture_nom}',
                 f'Maladies {culture_nom}',
-                f'Météo {region["nom"]}'
+                f'Météo {region["nom"]}',
+                'Alertes météo'
             ]
         }
 
@@ -219,9 +245,22 @@ class ChatbotService:
 
         response = f"🌾 **Récolte de {self.clean_text(culture_nom.capitalize())}** dans la région {self.clean_text(region['nom'])}\n\n"
         response += f"Période de récolte : {self.clean_text(calendrier['periode_recolte'])}\n\n"
-        response += f"Conseil : Surveillez bien la maturité de vos plants avant de récolter."
+        
+        # Vérifier les alertes pour conseils de récolte
+        alertes = AlertService.detecter_alertes_meteo(region['id_reg'])
+        if alertes:
+            response += "⚠️ **ATTENTION** : Conditions météo défavorables détectées. "
+            response += "Consultez les alertes avant de récolter.\n\n"
+        else:
+            response += "✅ Conditions météo favorables pour la récolte.\n\n"
+            
+        response += "Conseil : Surveillez bien la maturité de vos plants avant de récolter."
 
-        return {'response': response, 'data': calendrier, 'suggestions': [f'Maladies {culture_nom}', 'Conseils récolte']}
+        return {
+            'response': response, 
+            'data': calendrier, 
+            'suggestions': [f'Maladies {culture_nom}', 'Conseils récolte', 'Alertes météo']
+        }
 
     def handle_maladie(self, culture_nom, sentiment):
         """Gère les questions sur les maladies"""
@@ -249,7 +288,11 @@ class ChatbotService:
                 traitement = traitement[:247] + "..."
             response += f"Traitement : {traitement}\n\n"
 
-        return {'response': response, 'data': maladies, 'suggestions': [f'Conseils {culture_nom}', 'Prévention maladies']}
+        return {
+            'response': response, 
+            'data': maladies, 
+            'suggestions': [f'Conseils {culture_nom}', 'Prévention maladies', 'Alertes météo']
+        }
 
     def handle_conseil(self, culture_nom, sentiment):
         """Gère les demandes de conseils"""
@@ -269,46 +312,156 @@ class ChatbotService:
         response = f"Conseils pratiques pour la culture de {self.clean_text(culture_nom.capitalize())} :**\n\n"
         response += self.clean_text(conseils[0]['bonnes_pratique'])
 
-        return {'response': response, 'data': conseils,
-                'suggestions': [f'Planter {culture_nom}', f'Maladies {culture_nom}', 'Autres conseils']}
+        return {
+            'response': response, 
+            'data': conseils,
+            'suggestions': [f'Planter {culture_nom}', f'Maladies {culture_nom}', 'Alertes météo']
+        }
+
+    def handle_alerte(self, region, sentiment):
+        """Gère les demandes d'alertes météo"""
+        if not region:
+            return {
+                'response': "Pour quelle région souhaitez-vous vérifier les alertes météo ?\n\n"
+                            "Régions disponibles:\n"
+                            "• Centre Sud\n"
+                            "• Boucle de Mouhoun\n"
+                            "• Nord",
+                'suggestions': ['Alertes Centre Sud', 'Alertes Nord', 'Alertes Boucle de Mouhoun']
+            }
+
+        # Récupérer les alertes pour cette région
+        return self.get_alertes_utilisateur(region['id_reg'])
+
+    def get_alertes_utilisateur(self, region_id=None):
+        """Récupère les alertes météo pour l'utilisateur"""
+        try:
+            alertes = DatabaseService.get_alertes_utilisateur(region_id=region_id, non_lues_seulement=True)
+            
+            if not alertes:
+                return {
+                    'response': "✅ Aucune alerte météo active pour le moment. Les conditions sont favorables.",
+                    'data': {'alertes': []},
+                    'has_alerts': False,
+                    'suggestions': ['Météo actuelle', 'Calendrier de plantation', 'Vérifier alertes']
+                }
+            
+            response = "🚨 **ALERTES MÉTÉO ACTIVES** 🚨\n\n"
+            
+            for i, alerte in enumerate(alertes, 1):
+                # Icônes selon le type d'alerte
+                icone = {
+                    'secheresse': '🌵',
+                    'inondation': '🌧️',
+                    'vent_violent': '💨',
+                    'froid_intense': '❄️'
+                }.get(alerte['type'], '⚠️')
+                
+                # Couleur selon le niveau
+                niveau_emoji = {
+                    'danger': '🔴',
+                    'warning': '🟡',
+                    'info': '🔵'
+                }.get(alerte['niveau'], '⚪')
+                
+                response += f"{niveau_emoji} {icone} **{alerte['titre']}**\n"
+                response += f"   📍 Région: {alerte.get('region_nom', 'Non spécifiée')}\n"
+                response += f"   📅 Détecté: {alerte['timestamp'][:16].replace('T', ' ')}\n"
+                response += f"   {alerte['message']}\n"
+                
+                if alerte.get('conseils'):
+                    response += "\n   💡 **Conseils pratiques :**\n"
+                    for conseil in alerte['conseils']:
+                        response += f"   • {conseil}\n"
+                
+                response += "\n" + "─" * 40 + "\n\n"
+            
+            response += "**Recommandation :** Suivez ces conseils pour protéger vos cultures."
+            
+            return {
+                'response': response,
+                'data': {'alertes': alertes},
+                'has_alerts': True,
+                'suggestions': ['Météo détaillée', 'Conseils de protection', 'Marquer comme lues']
+            }
+            
+        except Exception as e:
+            print(f"[ALERTE ERROR] Erreur récupération alertes: {str(e)}")
+            return {
+                'response': "❌ Impossible de récupérer les alertes météo pour le moment. Veuillez réessayer plus tard.",
+                'data': None,
+                'has_alerts': False,
+                'suggestions': ['Météo actuelle', 'Réessayer alertes']
+            }
 
     def handle_general(self, message, sentiment):
         """Gère les messages généraux, salutations et questions hors sujet"""
         # Détection de salutation simple
         message_lower = message.lower().strip()
         salutations = ['bonjour', 'salut', 'bonsoir', 'hello', 'hi', 'hey', 'bsr', 'bjr', 'coucou']
+        alerte_keywords = ['alerte', 'alertes', 'danger', 'problème', 'urgence']
+        
+        # Vérifier s'il y a des alertes non lues
+        alertes_non_lues = DatabaseService.get_alertes_utilisateur(non_lues_seulement=True)
+        has_alertes = len(alertes_non_lues) > 0
         
         # Si c'est juste une salutation ou un message très court
         if any(salut in message_lower for salut in salutations) or len(message_lower) < 20:
             response = "Bonjour ! Je suis **SmartAgriBot**, votre assistant agricole intelligent pour le Burkina Faso. 🇧🇫\n\n"
+            
+            if has_alertes:
+                response += f"🚨 **ATTENTION : {len(alertes_non_lues)} ALERTE(S) MÉTÉO ACTIVE(S)**\n"
+                response += "Tapez 'alertes' pour consulter les détails.\n\n"
+            
             response += "Je peux vous aider avec :\n\n"
-            response += " La météo de votre région\n"
-            response += "Les périodes de plantation\n"
-            response += "Les périodes de récolte\n"
-            response += "Les maladies et traitements\n"
-            response += "Les conseils de culture\n\n"
+            response += "🌤️  La météo de votre région\n"
+            response += "🌱  Les périodes de plantation\n"
+            response += "🌾  Les périodes de récolte\n"
+            response += "🐛  Les maladies et traitements\n"
+            response += "💡  Les conseils de culture\n"
+            response += "🚨  Les alertes météo\n\n"
             response += "**Exemple de questions :**\n"
             response += "• \"Quelle est la météo au Nord ?\"\n"
             response += "• \"Quand planter le maïs ?\"\n"
+            response += "• \"Y a-t-il des alertes météo ?\"\n"
             response += "• \"Comment traiter les parasites du coton ?\""
+            
+            suggestions = ['Météo aujourd\'hui', 'Calendrier de plantation', 'Conseils de culture']
+            if has_alertes:
+                suggestions = ['Voir les alertes'] + suggestions
             
             return {
                 'response': response, 
-                'suggestions': ['Météo aujourd\'hui', 'Calendrier de plantation', 'Conseils de culture']
+                'suggestions': suggestions,
+                'has_alerts': has_alertes
             }
+        
+        # Détection de demande d'alertes
+        if any(keyword in message_lower for keyword in alerte_keywords):
+            return self.handle_alerte(None, sentiment)
         
         # Pour les autres questions hors sujet
         response = "Je suis désolé, je ne peux répondre qu'aux questions concernant :\n\n"
-        response += "La météo agricole\n"
-        response += "Les périodes de plantation\n"
-        response += "Les périodes de récolte\n"
-        response += "Les maladies des cultures\n"
-        response += "Les conseils de culture\n\n"
+        response += "🌤️  La météo agricole\n"
+        response += "🌱  Les périodes de plantation\n"
+        response += "🌾  Les périodes de récolte\n"
+        response += "🐛  Les maladies des cultures\n"
+        response += "💡  Les conseils de culture\n"
+        response += "🚨  Les alertes météo\n\n"
+        
+        if has_alertes:
+            response += f"💡 **Astuce :** Il y a {len(alertes_non_lues)} alerte(s) active(s). Tapez 'alertes' pour les consulter.\n\n"
+        
         response += "Pourriez-vous reformuler votre question sur l'un de ces sujets ?"
+        
+        suggestions = ['Météo aujourd\'hui', 'Quand planter le maïs ?', 'Maladies du coton']
+        if has_alertes:
+            suggestions = ['Voir les alertes'] + suggestions
         
         return {
             'response': response, 
-            'suggestions': ['Météo aujourd\'hui', 'Quand planter le maïs ?', 'Maladies du coton']
+            'suggestions': suggestions,
+            'has_alerts': has_alertes
         }
 
     def handle_error(self, error_message):
@@ -316,5 +469,5 @@ class ChatbotService:
         return {
             'response': f"❌ Une erreur s'est produite : {error_message}\n\nVeuillez réessayer ou reformuler votre question.",
             'error': True,
-            'suggestions': ['Météo aujourd\'hui', 'Calendrier de plantation']
+            'suggestions': ['Météo aujourd\'hui', 'Calendrier de plantation', 'Vérifier alertes']
         }

@@ -13,6 +13,7 @@ from flask_cors import CORS
 from config import Config  
 
 # Import des routes
+from routes.alert_routes import alert_bp
 from routes.chat_routes import chat_bp
 from routes.data_routes import data_bp
 from routes.meteo_routes import meteo_bp
@@ -35,8 +36,16 @@ def create_app():
     app.register_blueprint(chat_bp, url_prefix='/api')
     app.register_blueprint(data_bp, url_prefix='/api')
     app.register_blueprint(meteo_bp, url_prefix='/api')
+    app.register_blueprint(alert_bp, url_prefix='/api')
+    
+    with app.app_context():
+        from services.db_service import DatabaseService
+        DatabaseService.creer_table_alertes()
+        print("[APP] Table alertes initialisée")
+
 
     @app.route('/')
+    
     def index():
         """Page d'accueil de l'API"""
         return jsonify({

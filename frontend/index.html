@@ -20,6 +20,31 @@
                 <a href="#accueil">Accueil</a>
                 <a href="#fonctionnalites">Fonctionnalités</a>
                 <a href="chat.html">Discuter</a>
+                <!-- Icône Notification -->
+                <div class="notification-container">
+                    <button class="notification-icon" id="notification-toggle">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
+                    </button>
+                    <div class="notification-panel" id="notification-panel">
+                        <div class="notification-header">
+                            <h3><i class="fas fa-bell"></i> Alertes Météo</h3>
+                            <div class="notification-actions">
+                                <button class="btn-small" id="mark-all-read">Tout lire</button>
+                                <button class="btn-small" id="refresh-alerts"><i class="fas fa-sync-alt"></i></button>
+                            </div>
+                        </div>
+                        <div class="notification-list" id="notification-list">
+                            <!-- Les alertes seront chargées ici -->
+                        </div>
+                        <div class="notification-empty" id="notification-empty">
+                            <i class="fas fa-bell-slash"></i>
+                            <p>Aucune alerte active</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Overlay pour fermer les notifications -->
+                <div class="notification-overlay" id="notification-overlay"></div>
             </nav>
         </div>
     </header>
@@ -151,5 +176,6 @@
     </footer>
 
     <script src="script.js"></script>
+    <script src="notifications.js"></script>
 </body>
 </html>
